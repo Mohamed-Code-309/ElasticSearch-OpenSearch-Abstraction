@@ -1,23 +1,49 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Article } from './article.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
+import { ElasticsearchProvider } from '../search/providers/elasticsearch.provider';
+import { ARTICLE_INDEX, ARTICLE_MAPPING, ArticleDocument } from '../search/mappings/article.mapping';
 
-// PostgreSQL foreign key violation code
 const PG_FK_VIOLATION = '23503';
 
 @Injectable()
-export class ArticleService {
+export class ArticleService implements OnModuleInit {
+  private readonly logger = new Logger(ArticleService.name);
+
   constructor(
     @InjectRepository(Article)
     private readonly articleRepo: Repository<Article>,
-  ) {}
+    private readonly searchService: ElasticsearchProvider
+  ) { }
+
+  async onModuleInit(): Promise<void> {
+    await this.searchService.ensureIndex(ARTICLE_INDEX, ARTICLE_MAPPING);
+  }
 
   async create(dto: CreateArticleDto): Promise<Article> {
     try {
-      return await this.articleRepo.save(this.articleRepo.create(dto));
+      const saved = await this.articleRepo.save(this.articleRepo.create(dto));
+      const article = await this.findOne(saved.id);
+      try {
+        await this.searchService.index(ARTICLE_INDEX, {
+          ...article,
+          categoryId: article.categoryId ?? null,
+          categoryName: article.category?.name ?? null,
+        });
+      } catch (err) {
+        this.logger.error(`Failed to index article #${article.id}`, err);
+      }
+      return article;
     } catch (err) {
       if (err instanceof Error && 'code' in err && (err as any).code === PG_FK_VIOLATION)
         throw new BadRequestException(`Category #${dto.categoryId} not found`);
@@ -25,8 +51,17 @@ export class ArticleService {
     }
   }
 
-  findAll(): Promise<Article[]> {
-    return this.articleRepo.find({ relations: { category: true } });
+  async findAll(query?: string): Promise<Article[] | ArticleDocument[]> {
+    if (!query) {
+      return this.articleRepo.find({ relations: { category: true } });
+    }
+
+    const result = await this.searchService.search<ArticleDocument>(ARTICLE_INDEX, {
+      query,
+      fields: ['title', 'content', 'author', 'tags', 'categoryName'],
+    });
+
+    return result.hits.map((hit) => hit.source);
   }
 
   async findOne(id: number): Promise<Article> {
@@ -42,7 +77,17 @@ export class ArticleService {
     const article = await this.findOne(id);
     Object.assign(article, dto);
     try {
-      return await this.articleRepo.save(article);
+      const updated = await this.articleRepo.save(article);
+      try {
+        await this.searchService.updateById(ARTICLE_INDEX, updated.id, {
+          ...updated,
+          categoryId: updated.categoryId ?? null,
+          categoryName: updated.category?.name ?? null,
+        });
+      } catch (err) {
+        this.logger.error(`Failed to update article #${updated.id} in index`, err);
+      }
+      return updated;
     } catch (err) {
       if (err instanceof Error && 'code' in err && (err as any).code === PG_FK_VIOLATION)
         throw new BadRequestException(`Category #${dto.categoryId} not found`);
@@ -53,5 +98,10 @@ export class ArticleService {
   async remove(id: number): Promise<void> {
     const article = await this.findOne(id);
     await this.articleRepo.remove(article);
+    try {
+      await this.searchService.delete(ARTICLE_INDEX, id);
+    } catch (err) {
+      this.logger.error(`Failed to delete article #${id} from index`, err);
+    }
   }
 }

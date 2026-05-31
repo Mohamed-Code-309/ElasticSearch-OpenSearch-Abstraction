@@ -3,11 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Category } from './category.entity';
 import { CategoryController } from './category.controller';
 import { CategoryService } from './category.service';
+import { SearchModule } from '../search/search.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Category])],
+  imports: [
+    TypeOrmModule.forFeature([Category]),
+    SearchModule
+  ],
   controllers: [CategoryController],
   providers: [CategoryService],
   exports: [CategoryService],
 })
-export class CategoryModule {}
+export class CategoryModule { }
