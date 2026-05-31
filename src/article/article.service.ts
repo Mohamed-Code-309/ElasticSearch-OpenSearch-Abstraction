@@ -11,7 +11,8 @@ import { Repository } from 'typeorm';
 import { Article } from './article.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
-import { ElasticsearchProvider } from '../search/providers/elasticsearch.provider';
+import type { ISearchService } from '../search/interfaces/search.interface';
+import { SEARCH_SERVICE } from '../search/search.tokens';
 import { ARTICLE_INDEX, ARTICLE_MAPPING, ArticleDocument } from '../search/mappings/article.mapping';
 
 const PG_FK_VIOLATION = '23503';
@@ -23,7 +24,8 @@ export class ArticleService implements OnModuleInit {
   constructor(
     @InjectRepository(Article)
     private readonly articleRepo: Repository<Article>,
-    private readonly searchService: ElasticsearchProvider
+    @Inject(SEARCH_SERVICE)
+    private readonly searchService: ISearchService
   ) { }
 
   async onModuleInit(): Promise<void> {

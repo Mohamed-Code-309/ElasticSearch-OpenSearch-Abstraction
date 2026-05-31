@@ -4,7 +4,8 @@ import { Repository } from 'typeorm';
 import { Category } from './category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { ElasticsearchProvider } from '../search/providers/elasticsearch.provider';
+import type { ISearchService } from '../search/interfaces/search.interface';
+import { SEARCH_SERVICE } from '../search/search.tokens';
 import { ARTICLE_INDEX } from '../search/mappings/article.mapping';
 
 @Injectable()
@@ -14,7 +15,8 @@ export class CategoryService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
-    private readonly searchService: ElasticsearchProvider
+    @Inject(SEARCH_SERVICE)
+    private readonly searchService: ISearchService
   ) {}
 
   create(dto: CreateCategoryDto): Promise<Category> {
