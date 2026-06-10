@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -35,8 +34,9 @@ export class ArticleService implements OnModuleInit {
       const saved = await this.articleRepo.save(this.articleRepo.create(dto));
       const article = await this.findOne(saved.id);
       try {
+        const { category, ...document } = article;
         await this.searchService.index(ARTICLE_INDEX, {
-          ...article,
+          ...document,
           categoryId: article.categoryId ?? null,
           categoryName: article.category?.name ?? null,
         });
@@ -53,12 +53,15 @@ export class ArticleService implements OnModuleInit {
 
   async findAll(query?: string): Promise<Article[] | ArticleDocument[]> {
     if (!query) {
-      return this.articleRepo.find({ relations: { category: true } });
+      return this.articleRepo.find({
+        relations: { category: true },
+        order: { createdAt: "DESC" }
+      });
     }
-
     const result = await this.searchService.search<ArticleDocument>(ARTICLE_INDEX, {
       query,
       fields: ['title', 'content', 'author', 'tags', 'categoryName'],
+      sort: [{ createdAt: { order: 'desc' } }],
     });
 
     return result.hits.map((hit) => hit.source);
@@ -74,13 +77,16 @@ export class ArticleService implements OnModuleInit {
   }
 
   async update(id: number, dto: UpdateArticleDto): Promise<Article> {
-    const article = await this.findOne(id);
-    Object.assign(article, dto);
+    // const article = await this.findOne(id);
+    // Object.assign(article, dto); //won't work with {"categroyId": 2} or any F.K
     try {
-      const updated = await this.articleRepo.save(article);
+      await this.articleRepo.update(id, dto);
+      // const updated = await this.articleRepo.save(article);
+      const updated = await this.findOne(id);
       try {
+        const { category, ...document } = updated;
         await this.searchService.updateById(ARTICLE_INDEX, updated.id, {
-          ...updated,
+          ...document,
           categoryId: updated.categoryId ?? null,
           categoryName: updated.category?.name ?? null,
         });

@@ -1,9 +1,13 @@
+import { Expose, Transform } from 'class-transformer';
 import { ArticleStatus } from '../../article/dto/article-status.enum';
 
 export const ARTICLE_INDEX = 'articles';
 
 export const ARTICLE_MAPPING = {
   mappings: {
+    // dynamic: 'strict', //will reject any field not explicitly defined in the mapping (extra field).
+    // must exist on creation level, after that will have no effect
+    // will cause error: (ResponseError: strict_dynamic_mapping_exception)
     properties: {
       title: {
         type: 'text',

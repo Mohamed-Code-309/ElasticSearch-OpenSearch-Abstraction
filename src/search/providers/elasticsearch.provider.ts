@@ -107,7 +107,7 @@ export class ElasticsearchProvider implements ISearchService, OnModuleInit {
     index: string,
     query: SearchQuery,
   ): Promise<SearchResult<T>> {
-    const { query: queryString, fields, filters, from = 0, size = 10 } = query;
+    const { query: queryString, fields, filters, from = 0, size = 10, sort } = query;
 
     const must: Record<string, unknown>[] = [
       {
@@ -131,6 +131,7 @@ export class ElasticsearchProvider implements ISearchService, OnModuleInit {
         from,
         size,
         query: { bool: { must } },
+        ...(sort && { sort }),
       },
     });
 
