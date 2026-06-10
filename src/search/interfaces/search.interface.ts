@@ -9,6 +9,7 @@ export interface SearchQuery {
   filters?: Record<string, unknown>;
   from?: number;
   size?: number;
+  sort?: Array<Record<string, { order: 'asc' | 'desc' }>>;
 }
 
 export interface SearchHit<T = Record<string, unknown>> {
